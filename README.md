@@ -18,5 +18,8 @@ Notionの抜書から選んだ引用を、37分ごとにXへ投稿するボッ�
 | X_ACCESS_TOKEN / X_ACCESS_TOKEN_SECRET | Xのアクセストークン / シークレット |
 | AMAZON_TAG | AmazonアソシエイトのトラッキングID（〜-22） |
 
+## オン・オフ
+Settings → Secrets and variables → Actions → Variables タブで、`BOT_ENABLED` を `true` にすると定期投稿が始まります。`false` にするか削除すると止まります。
+
 ## 手動実行
 Actions → post → Run workflow。`dry_run` にチェックすると、投稿せずに投稿文だけを確認できます。
