@@ -1,0 +1,50 @@
+name: post
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"   # 10分ごとに起動し、前回から37分以上たっていれば投稿
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "投稿せずに投稿文だけ確認する"
+        type: boolean
+        default: true
+      force:
+        description: "37分の間隔チェックを無視する"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  actions: write   # 60日間コミットがなくても定期実行が止まらないようにするため
+
+concurrency:
+  group: post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Post
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_QUEUE_DB_ID: ${{ secrets.NOTION_QUEUE_DB_ID }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '0' }}
+        run: python bot.py
+      - name: Keep schedule alive
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow enable post.yml --repo "$GITHUB_REPOSITORY" || true
