@@ -9,8 +9,12 @@ on:
         description: "投稿せずに投稿文だけ確認する"
         type: boolean
         default: true
+      target_page:
+        description: "この行だけを投稿する（投稿キューの行のURL。空なら通常どおり）"
+        type: string
+        default: ""
       force:
-        description: "37分の間隔チェックを無視する"
+        description: "投稿間隔のチェックを無視する"
         type: boolean
         default: false
 
@@ -43,6 +47,7 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
           INTERVAL_MINUTES: ${{ vars.INTERVAL_MINUTES || '37' }}
+          TARGET_PAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.target_page || '' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '0' }}
         run: python bot.py

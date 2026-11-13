@@ -10,6 +10,7 @@
   DRY_RUN=1          投稿せずに投稿文を表示するだけ
   FORCE=1            間隔チェックを無視して投稿する
   INTERVAL_MINUTES   投稿間隔（分、既定 37）
+  TARGET_PAGE        投稿キューの特定の行（URLかID）を投稿する
 """
 
 from __future__ import annotations
@@ -107,6 +108,11 @@ def pick_next() -> dict | None:
     # 2) 全部投稿済みなら、いちばん前に投稿したものを再投稿
     rows = notion_query(ok, [{"property": P_POSTED_AT, "direction": "ascending"}])
     return rows[0] if rows else None
+
+
+def get_page(ref: str) -> dict:
+    page_id = ref.rstrip("/").split("/")[-1].split("?")[0].split("-")[-1]
+    return http_json("GET", f"https://api.notion.com/v1/pages/{page_id}", notion_headers())
 
 
 def mark_posted(page_id: str, when: datetime, post_url: str) -> None:
@@ -246,7 +252,8 @@ def main() -> None:
             print(f"前回の投稿から{interval}たっていません（あと約{int(wait.total_seconds() // 60)}分）。")
             return
 
-    row = pick_next()
+    target = os.environ.get("TARGET_PAGE", "").strip()
+    row = get_page(target) if target else pick_next()
     if row is None:
         print("投稿OKの引用がありません。")
         return
