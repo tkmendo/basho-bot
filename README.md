@@ -21,5 +21,11 @@ Notionの抜書から選んだ引用を、37分ごとにXへ投稿するボッ�
 ## オン・オフ
 Settings → Secrets and variables → Actions → Variables タブで、`BOT_ENABLED` を `true` にすると定期投稿が始まります。`false` にするか削除すると止まります。
 
+## 投稿間隔
+Variables タブで `INTERVAL_MINUTES`（分）を設定すると変えられます。未設定なら37分です。起動は10分ごとなので、実際の間隔は設定値〜設定値＋10分になります。
+
+## リンク先
+既定はKindleストアの検索結果です。Kindle版がない本は、投稿キューの「紙の本」にチェックを入れると紙の本の検索になります。
+
 ## 手動実行
 Actions → post → Run workflow。`dry_run` にチェックすると、投稿せずに投稿文だけを確認できます。

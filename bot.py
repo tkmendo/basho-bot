@@ -9,7 +9,7 @@
 任意:
   DRY_RUN=1          投稿せずに投稿文を表示するだけ
   FORCE=1            間隔チェックを無視して投稿する
-  INTERVAL_MINUTES   投稿間隔（既定 37）
+  INTERVAL_MINUTES   投稿間隔（分、既定 37）
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ P_AUTHOR = "著者"
 P_OK = "投稿OK"
 P_POSTED_AT = "投稿日時"
 P_POST_URL = "ポストURL"
+P_PAPER = "紙の本"  # チェックありなら紙の本、なしならKindleストアで検索
 
 
 def env(name: str, default: str | None = None) -> str:
@@ -129,9 +130,10 @@ def weight(text: str) -> int:
     return sum(char_weight(c) for c in unicodedata.normalize("NFC", text))
 
 
-def amazon_link(title: str, author: str) -> str:
+def amazon_link(title: str, author: str, paper: bool = False) -> str:
     query = " ".join(s for s in (title, author) if s)
-    params = urllib.parse.urlencode({"k": query, "i": "stripbooks",
+    category = "stripbooks" if paper else "digital-text"  # digital-text = Kindleストア
+    params = urllib.parse.urlencode({"k": query, "i": category,
                                      "tag": env("AMAZON_TAG")})
     return f"https://www.amazon.co.jp/s?{params}"
 
@@ -203,7 +205,8 @@ def main() -> None:
 
     props = row["properties"]
     quote, title, author = plain(props[P_QUOTE]), plain(props[P_TITLE]), plain(props[P_AUTHOR])
-    link = amazon_link(title, author)
+    paper = props.get(P_PAPER, {}).get("checkbox", False)
+    link = amazon_link(title, author, paper)
     text = build_text(quote, author, link)
     print(f"--- 投稿文（{weight(text[:-len(link)]) + URL_WEIGHT}/{MAX_WEIGHT}） ---")
     print(text)

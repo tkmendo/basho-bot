@@ -42,6 +42,7 @@ jobs:
           X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           AMAZON_TAG: ${{ secrets.AMAZON_TAG }}
+          INTERVAL_MINUTES: ${{ vars.INTERVAL_MINUTES || '37' }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '1' || '0' }}
           FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force && '1' || '0' }}
         run: python bot.py
