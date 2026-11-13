@@ -30,6 +30,8 @@ from datetime import datetime, timedelta, timezone
 
 NOTION_VERSION = "2022-06-28"
 X_POST_URL = "https://api.x.com/2/tweets"
+X_MEDIA_URL = "https://api.x.com/2/media/upload"
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
 MAX_WEIGHT = 280  # X の上限（日本語1文字=2、URL=23）
 URL_WEIGHT = 23
 
@@ -40,6 +42,7 @@ P_AUTHOR = "著者"
 P_OK = "投稿OK"
 P_POSTED_AT = "投稿日時"
 P_POST_URL = "ポストURL"
+P_PHOTO = "写真"  # 1枚目の画像を投稿に添付
 P_PAPER = "紙の本"  # チェックありなら紙の本、なしならKindleストアで検索
 
 
@@ -176,10 +179,55 @@ def oauth1_header(method: str, url: str) -> str:
     return "OAuth " + ", ".join(f'{_pct(k)}="{_pct(v)}"' for k, v in sorted(oauth.items()))
 
 
-def post_to_x(text: str) -> str:
+def photo_url(props: dict) -> tuple[str, str] | None:
+    files = props.get(P_PHOTO, {}).get("files", [])
+    if not files:
+        return None
+    f = files[0]
+    url = (f.get("file") or f.get("external") or {}).get("url")
+    return (url, f.get("name", "photo.jpg")) if url else None
+
+
+def download(url: str) -> tuple[bytes, str]:
+    req = urllib.request.Request(url, headers={"User-Agent": "basho-bot"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = resp.read(MAX_IMAGE_BYTES + 1)
+        ctype = resp.headers.get_content_type()
+    if len(data) > MAX_IMAGE_BYTES:
+        sys.exit("写真が5MBを超えています")
+    if not ctype.startswith("image/"):
+        sys.exit(f"写真が画像ではありません（{ctype}）")
+    return data, ctype
+
+
+def upload_media(data: bytes, ctype: str, filename: str) -> str:
+    boundary = "----basho" + secrets.token_hex(12)
+    parts = []
+    for name, value in (("media_category", "tweet_image"),):
+        parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+    parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="media"; filename="{filename}"\r\n'
+                 f"Content-Type: {ctype}\r\n\r\n".encode() + data + b"\r\n")
+    parts.append(f"--{boundary}--\r\n".encode())
+    body = b"".join(parts)
+    req = urllib.request.Request(X_MEDIA_URL, data=body, method="POST", headers={
+        "Authorization": oauth1_header("POST", X_MEDIA_URL),  # multipart は署名に含めない
+        "Content-Type": f"multipart/form-data; boundary={boundary}",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            res = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        sys.exit(f"写真のアップロードに失敗しました: {e.code} {e.read().decode(errors='replace')}")
+    return res["data"]["id"]
+
+
+def post_to_x(text: str, media_id: str | None = None) -> str:
     headers = {"Authorization": oauth1_header("POST", X_POST_URL),
                "Content-Type": "application/json"}
-    res = http_json("POST", X_POST_URL, headers, {"text": text})
+    body: dict = {"text": text}
+    if media_id:
+        body["media"] = {"media_ids": [media_id]}
+    res = http_json("POST", X_POST_URL, headers, body)
     return res["data"]["id"]
 
 
@@ -210,12 +258,17 @@ def main() -> None:
     text = build_text(quote, author, link)
     print(f"--- 投稿文（{weight(text[:-len(link)]) + URL_WEIGHT}/{MAX_WEIGHT}） ---")
     print(text)
+    photo = photo_url(props)
+    if photo:
+        data, ctype = download(photo[0])
+        print(f"写真: {photo[1]}（{ctype}, {len(data) // 1024}KB）")
 
     if dry_run:
         print("DRY_RUN のため投稿しません。")
         return
 
-    tweet_id = post_to_x(text)
+    media_id = upload_media(data, ctype, photo[1]) if photo else None
+    tweet_id = post_to_x(text, media_id)
     url = f"https://x.com/i/web/status/{tweet_id}"
     mark_posted(row["id"], now, url)
     print(f"投稿しました: {url}")
