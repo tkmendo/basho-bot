@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -42,8 +43,15 @@ def ndl_search(title: str, creator: str = "") -> list[tuple[str, str]]:
         params["creator"] = creator
     url = f"{NDL_URL}?{urllib.parse.urlencode(params)}"
     req = urllib.request.Request(url, headers={"User-Agent": "basho-bot (personal reading notes)"})
-    with urllib.request.urlopen(req, timeout=30) as resp:
-        root = ET.fromstring(resp.read())
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                root = ET.fromstring(resp.read())
+            break
+        except urllib.error.HTTPError as e:
+            if e.code != 429 or attempt == 4:
+                raise
+            time.sleep(15 * (attempt + 1))  # 混雑時は待って再試行
     found = []
     for item in root.iter("item"):
         issued = item.findtext("dcterms:issued", default="", namespaces=NS)
@@ -70,7 +78,7 @@ def best_isbn(title: str, author: str) -> str | None:
         except Exception as e:  # noqa: BLE001
             print(f"  NDL検索エラー: {e}")
             hits = []
-        time.sleep(1)
+        time.sleep(3)
         if hits:
             hits.sort(reverse=True)  # 新しい版を優先
             return hits[0][1]
