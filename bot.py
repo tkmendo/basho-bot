@@ -44,6 +44,7 @@ P_OK = "投稿OK"
 P_POSTED_AT = "投稿日時"
 P_POST_URL = "ポストURL"
 P_PHOTO = "写真"  # 1枚目の画像を投稿に添付
+P_ISBN = "ISBN"  # あれば商品ページ（書影カード）にリンク
 P_PAPER = "紙の本"  # チェックありなら紙の本、なしならKindleストアで検索
 
 
@@ -139,7 +140,23 @@ def weight(text: str) -> int:
     return sum(char_weight(c) for c in unicodedata.normalize("NFC", text))
 
 
-def amazon_link(title: str, author: str, paper: bool = False) -> str:
+def isbn10(isbn: str) -> str | None:
+    """ISBN-13(978)/ISBN-10 を Amazon の ASIN（=ISBN-10）にする。"""
+    digits = "".join(c for c in isbn.upper() if c.isdigit() or c == "X")
+    if len(digits) == 10:
+        return digits
+    if len(digits) == 13 and digits.startswith("978"):
+        core = digits[3:12]
+        total = sum((10 - i) * int(d) for i, d in enumerate(core))
+        check = (11 - total % 11) % 11
+        return core + ("X" if check == 10 else str(check))
+    return None
+
+
+def amazon_link(title: str, author: str, paper: bool = False, isbn: str = "") -> str:
+    asin = isbn10(isbn) if isbn else None
+    if asin:  # 商品ページ。Xで書影入りのカードが表示される
+        return f"https://www.amazon.co.jp/dp/{asin}?tag={urllib.parse.quote(env('AMAZON_TAG'))}"
     query = " ".join(s for s in (title, author) if s)
     category = "stripbooks" if paper else "digital-text"  # digital-text = Kindleストア
     params = urllib.parse.urlencode({"k": query, "i": category,
@@ -261,7 +278,7 @@ def main() -> None:
     props = row["properties"]
     quote, title, author = plain(props[P_QUOTE]), plain(props[P_TITLE]), plain(props[P_AUTHOR])
     paper = props.get(P_PAPER, {}).get("checkbox", False)
-    link = amazon_link(title, author, paper)
+    link = amazon_link(title, author, paper, plain(props.get(P_ISBN, {})))
     text = build_text(quote, author, link)
     print(f"--- 投稿文（{weight(text[:-len(link)]) + URL_WEIGHT}/{MAX_WEIGHT}） ---")
     print(text)

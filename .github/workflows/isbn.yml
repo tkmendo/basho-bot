@@ -1,0 +1,28 @@
+name: fill-isbn
+
+on:
+  workflow_dispatch:
+    inputs:
+      only_ok:
+        description: "投稿OKの行だけ処理する"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  fill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Fill ISBN
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_QUEUE_DB_ID: ${{ secrets.NOTION_QUEUE_DB_ID }}
+          ONLY_OK: ${{ inputs.only_ok && '1' || '0' }}
+        run: python fill_isbn.py
